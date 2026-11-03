@@ -1,28 +1,66 @@
-﻿name: Build BlackFox DWG Test
+﻿name: Build BlackFox DWG Converter
 
 on:
   push:
+    branches: [master]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
-    runs-on: windows-latest
+    name: Build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: blackfox-dwg-test.exe
+
+          - name: Linux x64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: blackfox-dwg-test
+
+          - name: macOS Intel
+            os: macos-13
+            target: x86_64-apple-darwin
+            binary: blackfox-dwg-test
+
+          - name: macOS Apple Silicon
+            os: macos-14
+            target: aarch64-apple-darwin
+            binary: blackfox-dwg-test
+
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout converter
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
+          targets: ${{ matrix.target }}
 
-      - name: Build release executable
-        run: cargo build --release
+      - name: Generate dependency lockfile
+        run: cargo generate-lockfile
 
-      - name: Upload executable
+      - name: Build release
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package executable
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: blackfox-dwg-test-windows-x64
-          path: target/release/blackfox-dwg-test.exe
+          name: blackfox-dwg-${{ matrix.target }}
+          path: dist/*
           if-no-files-found: error
