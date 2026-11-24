@@ -117,9 +117,19 @@ copy containing the pinned manifest and archive hashes:
 python tests/package_release.py embed <version> <dist> <extension-source.py> <extension-release.py>
 ```
 
-Build Linux packages against the oldest supported glibc environment, or
-qualify the runtime floor of the produced executable before distribution.
-A Rust target's minimum glibc version alone does not qualify a binary built
-against a newer distribution. For macOS, qualify the minimum deployment
-target on both architectures and sign and notarize the final distributable
-where required. Package and hash only the final binaries after signing.
+For Linux cross-builds, cargo-zigbuild 0.24.1 with Zig 0.15.2 can build
+against a glibc 2.17 runtime baseline:
+
+```text
+cargo zigbuild --release --locked --target x86_64-unknown-linux-gnu.2.17
+cargo zigbuild --release --locked --target aarch64-unknown-linux-gnu.2.17
+```
+
+Inspect the resulting ELF version requirements. The Rust target's
+minimum glibc version alone does not qualify a binary built against a
+newer distribution. Native CI logs the actual version requirements.
+
+The macOS builds request a deployment target of 11.0. Qualify that floor
+and the dynamic libraries on both architectures. Sign and notarize the
+final distributable where required and hash the resulting final binaries.
+[Apple signing and notarization guidance](https://developer.apple.com/developer-id/)

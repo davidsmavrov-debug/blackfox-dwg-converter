@@ -204,7 +204,7 @@ def main():
 
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
-        source = root / "model Ã¸.dxf"
+        source = root / "model ÃƒÂ¸.dxf"
         fixture(source)
         errors = []
         for version, magic in VERSIONS.items():
@@ -303,6 +303,19 @@ def main():
         run("convert", rich_dwg, rich_back)
         check_rich(rich_back)
         print("Modern entity, topology, metadata, paper space and precision PASS")
+
+        large_source = root / "large.dxf"
+        large_drawing = ezdxf.new("R2018")
+        for i in range(20_000):
+            large_drawing.modelspace().add_line((i, 0, i % 3), (i, 1, i % 3))
+        large_drawing.saveas(large_source)
+        large_dwg, large_dxf = root / "large.dwg", root / "large-back.dxf"
+        run("convert", large_source, large_dwg)
+        run("convert", large_dwg, large_dxf)
+        recovered = ezdxf.readfile(large_dxf).modelspace().query("LINE")
+        assert len(recovered) == 20_000
+        assert recovered[-1].dxf.end.isclose((19999, 1, 1))
+        print("20,000-entity drawing PASS")
 
         original = source.read_bytes()
         run("convert", source, source, fail=True)
