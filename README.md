@@ -50,8 +50,10 @@ The development build keeps the existing package executable name
 `BlackFoxDWG.exe` on Windows and `BlackFoxDWG` on Linux and macOS.
 Cargo's internal target is `blackfox-dwg-test`.
 
-- The published baseline is BlackFox DWG Converter v1.0.0. Its source is
-  recorded on the local `baseline/cad-1.0.0` branch at `2e49045`.
+- The published baseline is BlackFox DWG Converter v1.0.0, tag commit
+  `665e9cfb35c34e2136a96a9ac5cdaafb2b44e401`. The local
+  `baseline/cad-1.0.0` branch at `2e49045` keeps the same converter source
+  with later documentation and licensing commits.
 - AcadRust (MPL-2.0) is pinned to upstream commit
   `cc2010a415f3d2cfecf574f833febda0076c7572`. The newest stable tag is
   `v0.6.8` at `afffe4697b09f31f24080cc7a2a44928caeb3640`, which predates
