@@ -1,10 +1,11 @@
-﻿[package]
+[package]
 name = "blackfox-dwg-test"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-acadrust = { git = "https://github.com/hakanaktt/acadrust.git", rev = "17a3125153335eac19efa6409ace130a75c0bf54", default-features = false }
+acadrust = { git = "https://github.com/hakanaktt/acadrust.git", rev = "cc2010a415f3d2cfecf574f833febda0076c7572", default-features = false, features = ["import"] }
+tempfile = "3"
 
 [profile.release]
 opt-level = 3

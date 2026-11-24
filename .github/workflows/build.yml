@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   build:
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
     name: Build ${{ matrix.name }}
     strategy:
       fail-fast: false
@@ -26,7 +28,7 @@ jobs:
             binary: blackfox-dwg-test.exe
 
           - name: Linux x64
-            os: ubuntu-latest
+            os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             binary: blackfox-dwg-test
 
@@ -54,19 +56,39 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: '1.100.0'
           targets: ${{ matrix.target }}
 
-      - name: Generate dependency lockfile
-        run: cargo generate-lockfile
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install independent DXF reader
+        run: python -m pip install ezdxf==1.4.4
 
       - name: Build release
         run: cargo build --release --locked --target ${{ matrix.target }}
 
-      - name: Package executable
-        shell: bash
+      - name: Report Linux runtime dependencies
+        if: runner.os == 'Linux'
+        run: readelf --version-info target/${{ matrix.target }}/release/${{ matrix.binary }}
+
+      - name: Report macOS deployment and dynamic libraries
+        if: runner.os == 'macOS'
         run: |
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
+          xcrun vtool -show-build target/${{ matrix.target }}/release/${{ matrix.binary }}
+          otool -L target/${{ matrix.target }}/release/${{ matrix.binary }}
+
+      - name: Exercise native converter
+        run: python tests/roundtrip.py target/${{ matrix.target }}/release/${{ matrix.binary }}
+
+      - name: Fetch pinned AcadRust notices
+        run: git clone https://github.com/hakanaktt/acadrust.git acadrust-source
+
+      - name: Package executable and notices
+        run: |
+          git -C acadrust-source checkout cc2010a415f3d2cfecf574f833febda0076c7572
+          python tests/package_release.py package ${{ matrix.target }} target/${{ matrix.target }}/release/${{ matrix.binary }} acadrust-source/LICENSE dist
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
