@@ -96,7 +96,7 @@ def embed(args):
         contents = path.read_bytes()
         assets[target] = {"size": len(contents), "sha256": hashlib.sha256(contents).hexdigest()}
     manifest = json.dumps(
-        {"schema": 1, "repository": REPOSITORY, "abi": 2, "version": args.version,
+        {"schema": 1, "repository": REPOSITORY, "abi": 3, "version": args.version,
          "assets": assets},
         sort_keys=True, separators=(",", ":"),
     ).encode()

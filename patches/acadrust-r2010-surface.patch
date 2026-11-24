@@ -1,0 +1,106 @@
+diff --git a/src/io/dwg/dwg_stream_readers/object_reader/entities.rs b/src/io/dwg/dwg_stream_readers/object_reader/entities.rs
+index b0125de0..b63b0e08 100644
+--- a/src/io/dwg/dwg_stream_readers/object_reader/entities.rs
++++ b/src/io/dwg/dwg_stream_readers/object_reader/entities.rs
+@@ -5949,7 +5949,8 @@ pub fn read_surface(
+     // On inline pre-R2013 ACIS surfaces, the next fields are the surface isoline counts;
+     // probing them inside read_acis_entity_impl shifts the record by one bit.
+     let allow_extra = has_ds_data || version.r2013_plus(dxf_version);
+-    let Some(mut acis) = read_acis_entity_impl(
++    let initial = reader.clone();
++    let parsed = read_acis_entity_impl(
+         reader,
+         version,
+         dxf_version,
+@@ -5957,7 +5958,17 @@ pub fn read_surface(
+         allow_extra,
+         false,
+         None,
+-    ) else {
++    );
++    if dxf_version == DxfVersion::AC1024
++        && matches!(kind, SurfaceKind::Generic)
++        && !has_ds_data
++        && (parsed.is_none() || reader.has_error())
++    {
++        if let Some(recovered) = read_r2010_generic_surface_body(reader, initial.clone()) {
++            return recovered;
++        }
++    }
++    let Some(mut acis) = parsed else {
+         reader.invalidate("Unrecognized DWG surface modeler payload");
+         return SurfaceEntityData {
+             acis: empty_acis_entity(),
+@@ -5993,6 +6004,15 @@ pub fn read_surface(
+     }
+     let u_isolines = reader.read_bit_short();
+     let v_isolines = reader.read_bit_short();
++    if dxf_version == DxfVersion::AC1024
++        && matches!(kind, SurfaceKind::Generic)
++        && !has_ds_data
++        && reader.has_error()
++    {
++        if let Some(recovered) = read_r2010_generic_surface_body(reader, initial) {
++            return recovered;
++        }
++    }
+     let surface_data = match kind {
+         SurfaceKind::Generic => SurfaceData::Generic,
+         SurfaceKind::Plane => SurfaceData::Plane { class_version: 0 },
+@@ -6177,6 +6197,56 @@ pub fn read_surface(
+     }
+ }
+ 
++// Some R2010 AcDbSurface records have a complete inline SAB body followed by
++// a compact surface trailer rather than the shared solid metadata fields.
++fn read_r2010_generic_surface_body(
++    reader: &mut DwgMergedReader,
++    mut original: DwgMergedReader,
++) -> Option<SurfaceEntityData> {
++    let empty = original.read_bit();
++    let _reserved = original.read_bit();
++    let version = original.read_bit_short();
++    if empty || version != 2 || original.has_error() {
++        return None;
++    }
++    let available = original.main_remaining_bits();
++    let data = original.clone().read_bytes(original.remaining_bytes());
++    let (model, consumed) = crate::entities::acis::SabReader::read_with_consumed(&data).ok()?;
++    let trailer_bits = available.checked_sub(consumed as i64 * 8)?;
++    if model.faces().is_empty() || trailer_bits != 23 {
++        return None;
++    }
++    let end = original.position_in_bits() + available;
++    original.set_position_in_bits(original.position_in_bits() + consumed as i64 * 8);
++    if original.read_bit() || !original.read_bit() || original.read_bit() {
++        return None;
++    }
++    let u_isolines = original.read_bit_short();
++    let v_isolines = original.read_bit_short();
++    if !(0..=512).contains(&u_isolines)
++        || !(0..=512).contains(&v_isolines)
++        || original.has_error()
++        || original.position_in_bits() != end
++    {
++        return None;
++    }
++    original.set_position_in_bits(end);
++    *reader = original;
++    let mut acis = empty_acis_entity();
++    acis.acis_empty = false;
++    acis.is_binary = true;
++    acis.version = version;
++    acis.sab_data = data[..consumed].to_vec();
++    Some(SurfaceEntityData {
++        acis,
++        modeler_format_version: 1,
++        u_isolines,
++        v_isolines,
++        surface_data: SurfaceData::Generic,
++        history_handle: 0,
++    })
++}
++
+ /// Read a single wire struct from the DWG stream.
+ /// Field order/types per LibreDWG `Dwg_3DSOLID_wire`:
+ /// RC type, BLd selection_marker, BS color, BLd acis_index, BL num_points,

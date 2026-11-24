@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 acadrust = { git = "https://github.com/hakanaktt/acadrust.git", rev = "cc2010a415f3d2cfecf574f833febda0076c7572", default-features = false, features = ["import"] }
 tempfile = "3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [profile.release]
 opt-level = 3

@@ -1,3 +1,5 @@
+mod exchange;
+
 use acadrust::io::import::{self, ImportConfig, ImportFormat};
 use acadrust::io::read::ReadOutcome;
 use acadrust::{CadDocument, DwgReader, DwgWriter, DxfReader, DxfVersion, DxfWriter};
@@ -15,6 +17,8 @@ const HELP: &str = "\
 Usage:
   blackfox-dwg-test <input.dxf> <output.dwg> <version>
   blackfox-dwg-test convert [--binary-dxf] <input> <output.dxf|output.dwg> [version]
+  blackfox-dwg-test decode <input> <exchange.json>
+  blackfox-dwg-test encode <exchange.json> <output.dxf|output.dwg> <version>
   blackfox-dwg-test inspect <input>
 Versions: R11, R12, R13, R14, R2000, R2004, R2007, R2010, R2013, R2018,
           or the corresponding AC code. Omitting the version preserves it.";
@@ -42,6 +46,12 @@ fn run(args: &[OsString]) -> Result<()> {
         [flag] if flag == "--version" => {
             println!("blackfox-dwg-test {}", env!("CARGO_PKG_VERSION"));
             Ok(())
+        }
+        [cmd, input, output] if cmd == "decode" => {
+            exchange::decode(Path::new(input), Path::new(output))
+        }
+        [cmd, input, output, target] if cmd == "encode" => {
+            exchange::encode(Path::new(input), Path::new(output), version(target)?)
         }
         [cmd, input] if cmd == "inspect" => {
             let (format, doc) = read(Path::new(input))?;
@@ -132,10 +142,33 @@ fn output_format(path: &Path) -> Result<Format> {
 }
 
 fn read(path: &Path) -> Result<(Format, CadDocument)> {
+    read_cad(path, false)
+}
+
+fn read_for_import(path: &Path) -> Result<(Format, CadDocument)> {
+    read_cad(path, true)
+}
+
+fn read_cad(path: &Path, recover_for_import: bool) -> Result<(Format, CadDocument)> {
     let format = detect(path)?;
     let ReadOutcome { document, stats } = match format {
         Format::Dxf => DxfReader::from_file(path)?.read_with_stats()?,
-        Format::Dwg => DwgReader::from_file(path)?.read_with_stats()?,
+        Format::Dwg => match DwgReader::from_file(path)?.read_with_stats() {
+            Ok(outcome) => outcome,
+            Err(strict_error) if recover_for_import => {
+                let options = acadrust::DwgReadOptions {
+                    failsafe: true,
+                    ..Default::default()
+                };
+                let outcome = DwgReader::from_file_with_options(path, options)?
+                    .read_with_stats()
+                    .map_err(|_| strict_error.to_string())?;
+                eprintln!("Warning: DWG opened in recovery mode after a record read failed. Some records may be missing.");
+                eprintln!("Strict DWG read: {strict_error}");
+                outcome
+            }
+            Err(error) => return Err(error.into()),
+        },
         Format::Exchange(kind) => {
             let doc = import::import_file(path, &ImportConfig::default())?;
             for entry in doc.notifications.iter() {

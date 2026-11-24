@@ -135,3 +135,46 @@ The macOS builds request a deployment target of 11.0. Qualify that floor
 and the dynamic libraries on both architectures. Sign and notarize the
 final distributable where required and hash the resulting final binaries.
 [Apple signing and notarization guidance](https://developer.apple.com/developer-id/)
+
+## Direct IngeTrazo exchange
+
+ABI 3 uses the same AcadRust executable for geometry exchange in both
+directions. The Python adapter sends and receives schema 1 JSON. The
+converter writes DXF or DWG directly.
+
+```text
+BlackFoxDWG decode input.dwg model.json
+BlackFoxDWG encode model.json output.dxf R2018
+```
+
+The direct implementation covers lines and polylines, faces and meshes,
+guides, simple text leaders, aligned and world-axis linear dimensions,
+and nested block placements. Arcs, circles, ellipses and lightweight
+polyline bulges import as segmented contours. Standard analytic and
+architectural records outside the supported mapping are reported. The
+ACIS adapter produces an editable mesh for a single planar body with
+straight, single-loop face boundaries. Curved, transformed or holed ACIS
+bodies require additional mapping. The six mesh interchange inputs are
+read-only.
+
+Run the Rust tests and the extension's `tests/direct_exchange.py` suite.
+The integration suite blocks all imports of ezdxf and verifies native
+objects and the normal IngeTrazo command entry points on both engines.
+
+### Local R2010 surface reader fix
+
+The Windows preview 1.2.6 applies `patches/acadrust-r2010-surface.patch`
+to the pinned AcadRust revision. Normal decoding remains the first path.
+For generic R2010 surfaces, the fallback checks the inline SAB body with
+AcadRust and accepts the compact trailer only when it consumes exactly
+the remaining main-stream bits. The fallback retains both isoline counts.
+
+To rebuild the candidate, apply the patch to a separate checkout of the
+pinned AcadRust revision. In a disposable copy of the converter source,
+replace its AcadRust git dependency with a path to that checkout, keeping
+the same feature flags, and run `cargo build`. The published dependency pin
+and source assets are unchanged. The matching DXF was used only for QA.
+
+The acceptance DWG yielded all eleven native editable objects. The
+comparison with the DXF matched shape bounds, positions and topology,
+including the closed torus and both hollow-cylinder end openings.
